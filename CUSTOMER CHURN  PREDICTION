@@ -1,0 +1,81 @@
+# Import necessary libraries
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.compose import ColumnTransformer
+from sklearn.pipeline import Pipeline
+from sklearn.linear_model import LogisticRegression
+from sklearn.ensemble import RandomForestClassifier
+from xgboost import XGBClassifier
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report, roc_auc_score
+
+# Load the dataset
+# Assuming 'customer_data.csv' contains the historical data
+data = pd.read_csv(r'C:\Users\roysa\Downloads\archive\Churn_Modelling.csv')
+
+# Print the column names to verify the dataset structure
+print("Column names in the dataset:")
+print(data.columns)
+
+# Data Preprocessing
+# Handle missing values using forward fill (ffill)
+data.ffill(inplace=True)
+
+# Define the target column
+target_column = 'Exited'  # Update this if the actual target variable name is different
+
+# Check if 'Exited' exists in the dataset and proceed accordingly
+if target_column not in data.columns:
+    print(f"Target column '{target_column}' not found in dataset.")
+else:
+    # Split the data into features (X) and target (y)
+    X = data.drop(columns=[target_column, 'RowNumber', 'CustomerId', 'Surname'])  # Dropping unnecessary columns
+    y = data[target_column]
+
+    # Define categorical and numerical columns
+    categorical_cols = ['Geography', 'Gender']  # Adjust if there are more categorical variables
+    numerical_cols = X.select_dtypes(include=['int64', 'float64']).columns.tolist()
+
+    # Create a ColumnTransformer for preprocessing
+    preprocessor = ColumnTransformer(
+        transformers=[
+            ('num', StandardScaler(), numerical_cols),  # Scale numerical features
+            ('cat', OneHotEncoder(), categorical_cols)   # One-Hot Encode categorical features
+        ])
+
+    # Create a pipeline for each model
+    log_model = Pipeline(steps=[('preprocessor', preprocessor),
+                                 ('classifier', LogisticRegression())])
+    
+    rf_model = Pipeline(steps=[('preprocessor', preprocessor),
+                                ('classifier', RandomForestClassifier(n_estimators=100, random_state=42))])
+    
+    xgb_model = Pipeline(steps=[('preprocessor', preprocessor),
+                             ('classifier', XGBClassifier(eval_metric='logloss'))])
+
+
+    # Split into training and test sets
+    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.3, random_state=42)
+
+    # Train the models
+    log_model.fit(X_train, y_train)
+    rf_model.fit(X_train, y_train)
+    xgb_model.fit(X_train, y_train)
+
+    # Model Evaluation (on the test set)
+    def evaluate_model(model, X_test, y_test):
+        y_pred = model.predict(X_test)
+        print(f"Accuracy: {accuracy_score(y_test, y_pred)}")
+        print(f"Confusion Matrix:\n{confusion_matrix(y_test, y_pred)}")
+        print(f"Classification Report:\n{classification_report(y_test, y_pred)}")
+        print(f"ROC-AUC Score: {roc_auc_score(y_test, model.predict_proba(X_test)[:, 1])}")
+
+    # Evaluate each model
+    print("\nLogistic Regression Evaluation:")
+    evaluate_model(log_model, X_test, y_test)
+
+    print("\nRandom Forest Evaluation:")
+    evaluate_model(rf_model, X_test, y_test)
+
+    print("\nXGBoost Evaluation:")
+    evaluate_model(xgb_model, X_test, y_test)
